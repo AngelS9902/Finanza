@@ -344,11 +344,21 @@ tbody tr:has(.rec-check:checked) { background: var(--primary-soft); }
 .progress.green > span { background: linear-gradient(90deg, var(--green), #16a34a); }
 .progress.amber > span { background: linear-gradient(90deg, var(--amber), #d97706); }
 .progress.red > span { background: linear-gradient(90deg, var(--red), #e11d48); }
-.progress.mini { height: 4px; margin: 4px 0; max-width: 260px; }
+.progress.mini { height: 5px; margin: 7px 0; max-width: 360px; }
 
 /* Desglose de plan a plazos dentro de un recurrente (ej. equipo en recibo AT&T) */
-.rec-split { margin-top: 6px; font-size: 12px; font-weight: 400; line-height: 1.45; }
-.rec-split-line { white-space: nowrap; }
+.rec-split {
+  margin: 10px 0 2px;
+  padding: 9px 12px;
+  background: var(--bg-soft);
+  border-radius: 10px;
+  max-width: 420px;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.7;
+}
+.rec-split-line { white-space: normal; }
+.rec-split-line + .rec-split-line { margin-top: 4px; }
 .rec-split .rs-muted { color: var(--muted); font-weight: 400; }
 .goal-meta { display: flex; justify-content: space-between; font-size: 13px; color: var(--muted); margin-top: 8px; }
 .goal-actions { display: flex; gap: 8px; margin-top: 16px; }
