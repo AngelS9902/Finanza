@@ -77,6 +77,10 @@
     </nav>
 
     <div class="topbar-actions">
+      <div class="notif-wrap" id="notifWrap">
+        <button class="btn-ghost" id="btnNotif" title="Notificaciones">🔔<span class="notif-badge hidden" id="notifBadge"></span></button>
+        <div class="notif-panel hidden" id="notifPanel"></div>
+      </div>
       <button class="btn-ghost" id="btnCensor" title="Mostrar movimientos privados">🙈</button>
       <button class="btn-ghost" data-view="ajustes" title="Ajustes">⚙️</button>
       <button class="btn-ghost" id="btnLogout" title="Cerrar sesión">🚪</button>
@@ -130,7 +134,7 @@
         </div>
       </div>
 
-      <div id="dashAlerts" class="alerts hidden"></div>
+      <div id="dashAlerts" class="alerts hidden" style="display:none!important"></div>
 
       <div class="stat-grid">
         <div class="stat-card income">
@@ -623,11 +627,3 @@
   </datalist>
   <datalist id="dlCategorias"></datalist>
   <datalist id="dlCuentas"></datalist>
-  <datalist id="dlLink"></datalist>
-  <datalist id="dlTags"></datalist>
-
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-  <script src="app.js"></script>
-</body>
-</html>

@@ -472,15 +472,110 @@ function esc(s) { return String(s).replace(/[&<>"']/g, m => ({ '&':'&amp;','<':'
 /* ============================================================
    CENSURA de movimientos privados (Fansly/OnlyFans, etc.)
    ============================================================ */
-let censorPrivate = true; // por defecto los privados aparecen ocultos en cada sesión
+let censorPrivate = true;
 function isCensored(t) { return censorPrivate && t && t.private; }
 function dispDesc(t) { return isCensored(t) ? '🔒 Movimiento privado' : esc(t.description); }
-function toggleCensor() {
-  censorPrivate = !censorPrivate;
+
+function updateCensorBtn() {
   const btn = document.getElementById('btnCensor');
-  if (btn) { btn.textContent = censorPrivate ? '🙈' : '👁️'; btn.title = censorPrivate ? 'Mostrar movimientos privados' : 'Ocultar movimientos privados'; }
-  renderView(currentView);
+  if (btn) { btn.textContent = censorPrivate ? '🙈' : '👁️'; btn.title = censorPrivate ? 'Mostrar privados' : 'Ocultar privados'; }
 }
+
+/* ---- PIN overlay ---- */
+function createPinOverlay(title, subtitle, onComplete, onCancel) {
+  document.getElementById('pinOverlay')?.remove();
+  let digits = '';
+  const el = document.createElement('div');
+  el.id = 'pinOverlay';
+  el.className = 'pin-overlay';
+  el.innerHTML = `<div class="pin-box">
+    <div class="pin-title">${title}</div>
+    <div class="pin-subtitle" id="pinSub">${subtitle}</div>
+    <div class="pin-dots">
+      <div class="pin-dot" id="pd0"></div><div class="pin-dot" id="pd1"></div>
+      <div class="pin-dot" id="pd2"></div><div class="pin-dot" id="pd3"></div>
+    </div>
+    <div class="pin-error" id="pinError"></div>
+    <div class="pin-pad">
+      ${[1,2,3,4,5,6,7,8,9].map(k=>`<button class="pin-key" data-k="${k}">${k}</button>`).join('')}
+      <button class="pin-key cancel" data-k="cancel">Cancelar</button>
+      <button class="pin-key" data-k="0">0</button>
+      <button class="pin-key del" data-k="del">⌫</button>
+    </div>
+  </div>`;
+  document.body.appendChild(el);
+
+  function updateDots(errorClass) {
+    for (let i = 0; i < 4; i++) {
+      const d = document.getElementById('pd'+i);
+      if (!d) return;
+      d.className = 'pin-dot' + (i < digits.length ? (errorClass ? ' error' : ' filled') : '');
+    }
+  }
+
+  el.addEventListener('click', async (e) => {
+    const k = e.target.closest('.pin-key')?.dataset.k;
+    if (!k) return;
+    if (k === 'cancel') { el.remove(); onCancel?.(); return; }
+    if (k === 'del') { digits = digits.slice(0, -1); updateDots(); document.getElementById('pinError').textContent = ''; return; }
+    if (digits.length >= 4) return;
+    digits += k;
+    updateDots();
+    if (digits.length === 4) {
+      const result = onComplete(digits);
+      if (result === false) {
+        updateDots(true);
+        document.getElementById('pinError').textContent = 'PIN incorrecto, intenta de nuevo';
+        setTimeout(() => { digits = ''; updateDots(); document.getElementById('pinError').textContent = ''; }, 800);
+      } else if (result === null) {
+        setTimeout(() => { digits = ''; updateDots(); }, 300);
+      }
+    }
+  });
+}
+
+function toggleCensor() {
+  if (censorPrivate) {
+    const pin = state.settings?.privatePin;
+    if (!pin) {
+      // Crear PIN nuevo (2 pasos)
+      let step = 1, firstPin = '';
+      createPinOverlay('Crear PIN privado', 'Elige un PIN de 4 digitos', (d) => {
+        if (step === 1) {
+          firstPin = d; step = 2;
+          document.querySelector('#pinOverlay .pin-title').textContent = 'Confirmar PIN';
+          document.getElementById('pinSub').textContent = 'Repite el PIN para confirmar';
+          return null;
+        }
+        if (d === firstPin) {
+          state.settings = state.settings || {};
+          state.settings.privatePin = d;
+          save();
+          document.getElementById('pinOverlay')?.remove();
+          censorPrivate = false; updateCensorBtn(); renderView(currentView);
+          toast('PIN creado. Ahora puedes ver tus movimientos privados 👁️');
+          return true;
+        }
+        step = 1; firstPin = '';
+        document.querySelector('#pinOverlay .pin-title').textContent = 'Crear PIN privado';
+        document.getElementById('pinSub').textContent = 'Los PINs no coinciden. Intenta de nuevo';
+        return false;
+      }, null);
+    } else {
+      createPinOverlay('PIN privado', 'Ingresa tu PIN de 4 digitos', (d) => {
+        if (d === pin) {
+          document.getElementById('pinOverlay')?.remove();
+          censorPrivate = false; updateCensorBtn(); renderView(currentView);
+          return true;
+        }
+        return false;
+      }, null);
+    }
+  } else {
+    censorPrivate = true; updateCensorBtn(); renderView(currentView);
+  }
+}
+
 window.togglePrivate = (id) => {
   const t = state.transactions.find(x => x.id === id); if (!t) return;
   t.private = !t.private;
@@ -2933,19 +3028,16 @@ document.getElementById('btnSimulador').addEventListener('click', simuladorModal
 
 // Avisos de fechas de corte/pago próximas de tarjetas de crédito
 function renderDashAlerts() {
-  const box = document.getElementById('dashAlerts');
-  if (!box) return;
   const items = [];
   state.accounts.filter(a => a.kind === 'credito').forEach(a => {
     const owed = Math.max(0, cardOwed(a));
     const dc = daysUntilDay(a.cutDay), dp = daysUntilDay(a.dueDay);
     if (dp !== null && dp <= 5 && owed > 0) {
-      items.push({ danger: true, html: `⚠️ <b>${esc(a.name)}</b>: tu fecha de pago es en ${dp} día(s) (día ${a.dueDay}). Paga <b>${money(owed)}</b> para no generar intereses.` });
+      items.push({ danger: true, html: `⚠️ <b>${esc(a.name)}</b>: fecha de pago en ${dp} día(s) (día ${a.dueDay}). Paga <b>${money(owed)}</b>.` });
     } else if (dc !== null && dc <= 5) {
-      items.push({ danger: false, html: `🗓️ <b>${esc(a.name)}</b>: tu fecha de corte es en ${dc} día(s) (día ${a.cutDay}).` });
+      items.push({ danger: false, html: `🗓️ <b>${esc(a.name)}</b>: fecha de corte en ${dc} día(s) (día ${a.cutDay}).` });
     }
   });
-  // Alertas de sobregasto vs presupuesto (mes en curso): 80% (aviso) y 100% (sobregasto)
   const spent = spentByCategory(currentMonthKey());
   Object.keys(state.budgets).forEach(c => {
     const lim = state.budgets[c]; if (!lim) return;
@@ -2953,8 +3045,19 @@ function renderDashAlerts() {
     if (pct >= 100) items.push({ danger: true, html: `🔴 Presupuesto de <b>${esc(c)}</b> superado: ${money(used)} de ${money(lim)} (${pct.toFixed(0)}%).` });
     else if (pct >= 80) items.push({ danger: false, html: `🟠 Presupuesto de <b>${esc(c)}</b> al ${pct.toFixed(0)}%: ${money(used)} de ${money(lim)}.` });
   });
-  box.innerHTML = items.map(a => `<div class="alert ${a.danger ? 'danger' : ''}">${a.html}</div>`).join('');
-  box.classList.toggle('hidden', items.length === 0);
+
+  // Actualizar campana
+  const badge = document.getElementById('notifBadge');
+  const panel = document.getElementById('notifPanel');
+  if (badge) { badge.textContent = items.length || ''; badge.classList.toggle('hidden', items.length === 0); }
+  if (panel && !panel.classList.contains('hidden')) {
+    panel.innerHTML = items.length
+      ? items.map(a => `<div class="notif-item${a.danger ? ' danger' : ''}">${a.html}</div>`).join('')
+      : '<div class="notif-empty">Sin alertas activas ✓</div>';
+  }
+  if (panel && panel.classList.contains('hidden')) {
+    panel._items = items; // guardar para cuando se abra
+  }
 }
 
 function lastNMonths(n) {
@@ -3898,17 +4001,17 @@ function seedIfEmpty() {
     { id: uid(), date: iso(1), type:'Ingreso', description:'Salario quincenal', amount:9000, account:'BBVA Débito', category:'Salario', notes:'' },
     { id: uid(), date: iso(2), type:'Gasto', description:'Compra en Oxxo', amount:85, account:'BBVA Débito', category:'Comida', notes:'Snacks' },
     { id: uid(), date: iso(3), type:'Gasto', description:'Súper de la semana', amount:1240, account:'Rappi', category:'Supermercado', notes:'' },
-    { id: uid(), date: iso(5), type:'Gasto', description:'Gasolina', amount:700, account:'BBVA Débito', category:'Transporte', notes:'' },
+    { id: uid(), date: iso(5), type:'Gasto', description:'Gasolina', amount:700, account:'BBVA Debito', category:'Transporte', notes:'' },
     { id: uid(), date: iso(8), type:'Gasto', description:'Netflix', amount:219, account:'Rappi', category:'Suscripciones', notes:'' },
-    { id: uid(), date: iso(35), type:'Ingreso', description:'Salario quincenal', amount:9000, account:'BBVA Débito', category:'Salario', notes:'' },
+    { id: uid(), date: iso(35), type:'Ingreso', description:'Salario quincenal', amount:9000, account:'BBVA Debito', category:'Salario', notes:'' },
     { id: uid(), date: iso(40), type:'Gasto', description:'Cena restaurante', amount:560, account:'Rappi', category:'Entretenimiento', notes:'' },
   ];
   state.goals = [
     { id: uid(), name:'Apple Watch', target:8500, saved:3200, targetDate: new Date(now.getFullYear(), now.getMonth()+4, 1).toISOString().slice(0,10), note:'Series 10' },
   ];
   state.debts = [
-    { id: uid(), name:'Tarjeta Nu', dtype:'Tarjeta de crédito', total:6500, paid:2000, monthly:1000, dueDate: new Date(now.getFullYear(), now.getMonth(), 28).toISOString().slice(0,10) },
-    { id: uid(), name:'Spotify', dtype:'Suscripción', total:115, paid:0, monthly:115, dueDate:'' },
+    { id: uid(), name:'Tarjeta Nu', dtype:'Tarjeta de credito', total:6500, paid:2000, monthly:1000, dueDate: new Date(now.getFullYear(), now.getMonth(), 28).toISOString().slice(0,10) },
+    { id: uid(), name:'Spotify', dtype:'Suscripcion', total:115, paid:0, monthly:115, dueDate:'' },
   ];
   save();
 }
@@ -3920,18 +4023,14 @@ async function initApp() {
   const { data: { session } } = await _sb.auth.getSession();
   if (!session) return;
 
-  // Cargar datos desde Supabase
   const { data } = await _sb.from('user_data')
     .select('state')
     .eq('user_id', session.user.id)
     .single();
 
   if (data?.state && Object.keys(data.state).length > 0) {
-    // Usuario existente — usar datos de Supabase
     state = migrate(data.state);
   }
-  // Si no hay datos en Supabase, state ya tiene localStorage o defaults
-  // seedIfEmpty() lo guardará en Supabase vía save()
 
   document.getElementById('loginScreen').style.display = 'none';
   seedIfEmpty();
@@ -3966,9 +4065,9 @@ _sb.auth.onAuthStateChange((event, session) => {
 
   toggleBtn.addEventListener('click', () => {
     isRegister = !isRegister;
-    loginBtn.textContent = isRegister ? 'Crear cuenta' : 'Iniciar sesión';
-    toggleBtn.textContent = isRegister ? '¿Ya tienes cuenta? Inicia sesión' : '¿No tienes cuenta? Regístrate';
-    subtitle.textContent = isRegister ? 'Crea tu cuenta' : 'Inicia sesión para continuar';
+    loginBtn.textContent = isRegister ? 'Crear cuenta' : 'Iniciar sesion';
+    toggleBtn.textContent = isRegister ? 'Ya tienes cuenta? Inicia sesion' : 'No tienes cuenta? Registrate';
+    subtitle.textContent = isRegister ? 'Crea tu cuenta' : 'Inicia sesion para continuar';
     errorBox.style.display = 'none';
   });
 
@@ -3976,7 +4075,7 @@ _sb.auth.onAuthStateChange((event, session) => {
     e.preventDefault();
     errorBox.style.display = 'none';
     loginBtn.disabled = true;
-    loginBtn.textContent = '…';
+    loginBtn.textContent = '...';
 
     const email = document.getElementById('loginEmail').value;
     const password = document.getElementById('loginPassword').value;
@@ -3992,6 +4091,10 @@ _sb.auth.onAuthStateChange((event, session) => {
       showError(result.error.message);
       loginBtn.disabled = false;
       loginBtn.textContent = isRegister ? 'Crear cuenta' : 'Iniciar sesion';
+    } else if (isRegister && !result.data.session) {
+      showError('Revisa tu correo para confirmar tu cuenta.', true);
+      loginBtn.disabled = false;
+      loginBtn.textContent = 'Crear cuenta';
     }
   });
 
@@ -3999,4 +4102,21 @@ _sb.auth.onAuthStateChange((event, session) => {
     await _sb.auth.signOut();
     location.reload();
   });
+
+  // Campana de notificaciones
+  const btnNotif = document.getElementById('btnNotif');
+  const notifPanel = document.getElementById('notifPanel');
+  if (btnNotif && notifPanel) {
+    btnNotif.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const isOpen = !notifPanel.classList.contains('hidden');
+      if (isOpen) { notifPanel.classList.add('hidden'); return; }
+      const items = notifPanel._items || [];
+      notifPanel.innerHTML = items.length
+        ? items.map(a => '<div class="notif-item' + (a.danger ? ' danger' : '') + '">' + a.html + '</div>').join('')
+        : '<div class="notif-empty">Sin alertas activas</div>';
+      notifPanel.classList.remove('hidden');
+    });
+    document.addEventListener('click', () => notifPanel.classList.add('hidden'));
+  }
 })();
