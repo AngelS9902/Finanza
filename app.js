@@ -763,7 +763,7 @@ function renderTransacciones() {
     (!sq.text || (t.description + ' ' + (t.notes||'') + ' ' + (t.tags||[]).join(' ')).toLowerCase().includes(sq.text)) &&
     (!fType || t.type === fType) &&
     (!fCat || t.category === fCat) &&
-    (!fAcc || t.account === fAcc) &&
+    (!fAcc || sameAcc(t.account, fAcc) || (t.type === 'Transferencia' && sameAcc(t.toAccount, fAcc))) &&
     (!fTag || (t.tags||[]).includes(fTag)) &&
     (!dateFrom || t.date >= dateFrom) &&
     (!dateTo || t.date <= dateTo) &&
@@ -856,8 +856,10 @@ window.toggleRecurring = (id) => {
   }
   save(); renderTransacciones(); toast(t.recurring ? 'Marcada como recurrente' : 'Ya no es recurrente');
 };
-['txSearch','txFilterType','txFilterCat','txFilterAcc','txFilterTag','txFilterDateFrom','txFilterDateTo','txFilterAmtMin','txFilterAmtMax'].forEach(id =>
+['txSearch','txFilterDateFrom','txFilterDateTo','txFilterAmtMin','txFilterAmtMax'].forEach(id =>
   document.getElementById(id).addEventListener('input', renderTransacciones));
+['txFilterType','txFilterCat','txFilterAcc','txFilterTag'].forEach(id =>
+  document.getElementById(id).addEventListener('change', renderTransacciones));
 document.getElementById('btnNuevaTx').addEventListener('click', () => txModal());
 
 // Popover de filtros: abrir/cerrar
@@ -868,7 +870,7 @@ document.getElementById('txFilterToggle').addEventListener('click', (e) => {
 });
 txFilterPanel.addEventListener('click', (e) => e.stopPropagation()); // no cerrar al interactuar dentro
 document.addEventListener('click', () => txFilterPanel.classList.remove('open'));
-document.getElementById('txFilterApply').addEventListener('click', () => txFilterPanel.classList.remove('open'));
+document.getElementById('txFilterApply').addEventListener('click', () => { txFilterPanel.classList.remove('open'); renderTransacciones(); });
 
 // Limpiar solo los campos del panel
 document.getElementById('txFilterClear').addEventListener('click', () => {
