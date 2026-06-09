@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mis Finanzas</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <!-- ===================== TOP BAR ===================== -->
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-logo">$</div>
+      <span class="brand-name">Mis Finanzas</span>
+    </div>
+
+    <!-- Menú desplegable de navegación -->
+    <div class="nav-dropdown" id="navDropdown">
+      <button class="nav-toggle" id="navToggle">
+        <span id="navCurrentLabel">Resumen</span>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+      </button>
+      <ul class="nav-menu" id="navMenu">
+        <li data-view="dashboard" class="active"><span class="nav-ico">📊</span> Resumen</li>
+        <li data-view="metas"><span class="nav-ico">🎯</span> Metas</li>
+        <li data-view="plan"><span class="nav-ico">🧭</span> Plan</li>
+        <li data-view="presupuesto"><span class="nav-ico">🧮</span> Presupuesto</li>
+        <li data-view="transacciones"><span class="nav-ico">💸</span> Transacciones</li>
+        <li data-view="recurrentes"><span class="nav-ico">🔁</span> Recurrentes</li>
+        <li data-view="historial"><span class="nav-ico">📅</span> Historial</li>
+        <li data-view="deudas"><span class="nav-ico">💳</span> Deudas</li>
+        <li data-view="ajustes"><span class="nav-ico">⚙️</span> Ajustes</li>
+      </ul>
+    </div>
+
+    <!-- Navegación horizontal (pantallas grandes) -->
+    <nav class="nav-inline">
+      <button data-view="dashboard" class="active">Resumen</button>
+      <button data-view="metas">Metas</button>
+      <button data-view="plan">Plan</button>
+      <button data-view="presupuesto">Presupuesto</button>
+      <button data-view="transacciones">Transacciones</button>
+      <button data-view="recurrentes">Recurrentes</button>
+      <button data-view="historial">Historial</button>
+      <button data-view="deudas">Deudas</button>
+    </nav>
+
+    <div class="topbar-actions">
+      <button class="btn-ghost" id="btnCensor" title="Mostrar movimientos privados">🙈</button>
+      <button class="btn-ghost" data-view="ajustes" title="Ajustes">⚙️</button>
+    </div>
+  </header>
+
+  <main class="container">
+
+    <!-- ===================== DASHBOARD ===================== -->
+    <section class="view active" id="view-dashboard">
+      <div class="view-head">
+        <div>
+          <h1>Resumen</h1>
+          <p class="muted">Tu panorama financiero de un vistazo</p>
+        </div>
+        <div class="dash-controls">
+          <select id="dashAccount" class="select-inline"></select>
+
+          <div class="rangepick" id="dashRangePick">
+            <button class="rp-arrow" id="rpPrev" title="Periodo anterior"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 18l-6-6 6-6"/></svg></button>
+            <button class="rp-trigger" id="rpTrigger">
+              <span id="rpLabel">…</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+            </button>
+            <button class="rp-arrow" id="rpNext" title="Periodo siguiente"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 18l6-6-6-6"/></svg></button>
+
+            <div class="rp-panel" id="rpPanel">
+              <div class="rp-cals">
+                <div class="rp-cal" id="rpCalLeft"></div>
+                <div class="rp-cal" id="rpCalRight"></div>
+                <div class="rp-presets" id="rpPresets">
+                  <button data-preset="thisWeek">Esta semana</button>
+                  <button data-preset="lastWeek">Semana pasada</button>
+                  <button data-preset="thisMonth">Este mes</button>
+                  <button data-preset="lastMonth">Mes pasado</button>
+                  <button data-preset="thisYear">Este año</button>
+                  <button data-preset="lastYear">Año pasado</button>
+                  <button data-preset="all">Todo el historial</button>
+                </div>
+              </div>
+              <div class="rp-foot">
+                <span id="rpSelLabel" class="muted"></span>
+                <button class="btn-primary btn-sm" id="rpApply">Aplicar</button>
+              </div>
+            </div>
+          </div>
+
+          <button class="btn-sm" id="btnSimulador" title="Simular un gasto o ingreso hipotético">🔮 Simular</button>
+          <button class="btn-sm" id="btnReporte" title="Generar reporte mensual imprimible / PDF">🖨️ Reporte</button>
+          <button class="btn-sm" id="btnAnalisis" title="Genera un reporte financiero extenso (imprimible/PDF) y, desde ahí, una versión lista para pegar en una IA">📊 Análisis</button>
+        </div>
+      </div>
+
+      <div id="dashAlerts" class="alerts hidden"></div>
+
+      <div class="stat-grid">
+        <div class="stat-card income">
+          <div class="stat-label">Ingresos</div>
+          <div class="stat-value" id="statIngresos">$0</div>
+          <div class="stat-delta" id="statIngresosDelta"></div>
+          <div class="stat-foot" id="statIngresosFoot">—</div>
+        </div>
+        <div class="stat-card expense">
+          <div class="stat-label">Gastos</div>
+          <div class="stat-value" id="statGastos">$0</div>
+          <div class="stat-delta" id="statGastosDelta"></div>
+          <div class="stat-foot" id="statGastosFoot">—</div>
+        </div>
+        <div class="stat-card balance">
+          <div class="stat-label">Balance</div>
+          <div class="stat-value" id="statBalance">$0</div>
+          <div class="stat-delta" id="statBalanceDelta"></div>
+          <div class="stat-foot" id="statBalanceFoot">Ingresos − Gastos</div>
+        </div>
+        <div class="stat-card rate">
+          <div class="stat-label">Tasa de ahorro</div>
+          <div class="stat-value" id="statTasa">—</div>
+          <div class="stat-foot" id="statTasaFoot">(Ingresos − Gastos) / Ingresos</div>
+        </div>
+        <div class="stat-card saving">
+          <div class="stat-label">Ahorrado</div>
+          <div class="stat-value" id="statAhorro">$0</div>
+          <div class="stat-foot" id="statAhorroFoot">Total en metas</div>
+        </div>
+        <div class="stat-card debt">
+          <div class="stat-label">Deuda total</div>
+          <div class="stat-value" id="statDeuda">$0</div>
+          <div class="stat-foot" id="statDeudaFoot">Pendiente por pagar</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h3>Saldos de cuentas</h3>
+          <button class="link-btn" data-view="ajustes">Ajustar saldos →</button>
+        </div>
+        <div id="accountBalances" class="acct-grid"></div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-head"><h3>Patrimonio neto</h3><span class="muted" id="netWorthNow">$0</span></div>
+          <div class="chart-box"><canvas id="chartPatrimonio"></canvas></div>
+          <div class="netw-legend" id="netWorthBreak"></div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h3>Proyección & hábitos</h3></div>
+          <div class="mini-block" id="projBlock"></div>
+          <div class="mini-block" id="antBlock"></div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-head"><h3>Ingresos vs Gastos</h3></div>
+          <div class="chart-box"><canvas id="chartIngresoGasto"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h3>Gastos por categoría</h3></div>
+          <div class="chart-box"><canvas id="chartCategorias"></canvas></div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-head"><h3>Tendencia mensual</h3></div>
+          <div class="chart-box"><canvas id="chartTendencia"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h3>Avance de metas</h3></div>
+          <div id="dashMetas" class="mini-goals"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h3>Movimientos recientes</h3>
+          <button class="link-btn" data-view="transacciones">Ver todos →</button>
+        </div>
+        <div id="dashRecientes"></div>
+      </div>
+    </section>
+
+    <!-- ===================== METAS ===================== -->
+    <section class="view" id="view-metas">
+      <div class="view-head">
+        <div>
+          <h1>Metas de ahorro</h1>
+          <p class="muted">Define tus objetivos y sigue tu progreso</p>
+        </div>
+        <div class="dash-controls">
+          <button class="btn-sm" id="btnFondoEmergencia">🛟 Fondo de emergencia</button>
+          <button class="btn-primary" id="btnNuevaMeta">+ Nueva meta</button>
+        </div>
+      </div>
+      <div id="metasGrid" class="metas-grid"></div>
+    </section>
+
+    <!-- ===================== PLAN (Modo Plan) ===================== -->
+    <section class="view" id="view-plan">
+      <div class="view-head">
+        <div>
+          <h1>Modo Plan 🧭</h1>
+          <p class="muted">A dónde va cada peso libre, en orden de prioridad fija</p>
+        </div>
+        <div class="dash-controls">
+          <button class="btn-sm" id="btnPlanSupuestos" title="Editar sueldo, fondos, deuda PC y metas del plan">⚙️ Editar supuestos</button>
+        </div>
+      </div>
+
+      <!-- Banner: qué hacer este mes -->
+      <div id="planThisMonth" class="plan-banner"></div>
+
+      <!-- Dinero libre del mes -->
+      <div class="stat-grid four" id="planStats"></div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-head"><h3>Fondo de emergencia</h3><span class="muted" id="planFundNow">$0</span></div>
+          <div class="chart-box"><canvas id="chartPlanFondo"></canvas></div>
+          <div id="planFundLegend" class="plan-legend"></div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h3>Cómo funciona el plan</h3></div>
+          <div id="planExplain" class="mini-block"></div>
+        </div>
+      </div>
+
+      <h3 class="section-title">🚦 Objetivos en orden de prioridad</h3>
+      <div id="planGrid" class="metas-grid"></div>
+    </section>
+
+    <!-- ===================== TRANSACCIONES ===================== -->
+    <section class="view" id="view-transacciones">
+      <div class="view-head">
+        <div>
+          <h1>Transacciones</h1>
+          <p class="muted">Registra tus gastos, ingresos y ahorros</p>
+        </div>
+        <button class="btn-primary" id="btnNuevaTx">+ Nueva transacción</button>
+      </div>
+
+      <div class="card filters">
+        <input type="search" id="txSearch" placeholder="Buscar… o teclea >100, <500, =250, desde:2026-05-01, hasta:2026-05-31" />
+
+        <div class="filter-menu" id="txFilterMenu">
+          <button type="button" class="btn-filter" id="txFilterToggle">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 4h18l-7 8v6l-4 2v-8z"/></svg>
+            Filtros
+            <span class="filter-badge hidden" id="txFilterCount">0</span>
+          </button>
+
+          <div class="filter-panel" id="txFilterPanel">
+            <div class="fp-field">
+              <label>Tipo</label>
+              <select id="txFilterType">
+                <option value="">Todos los tipos</option>
+                <option value="Gasto">Gasto</option>
+                <option value="Ingreso">Ingreso</option>
+                <option value="Ahorro">Ahorro</option>
+                <option value="Transferencia">Transferencia</option>
+              </select>
+            </div>
+            <div class="fp-field">
+              <label>Categoría</label>
+              <select id="txFilterCat"><option value="">Todas las categorías</option></select>
+            </div>
+            <div class="fp-field">
+              <label>Cuenta</label>
+              <select id="txFilterAcc"><option value="">Todas las cuentas</option></select>
+            </div>
+            <div class="fp-field">
+              <label>Tag</label>
+              <select id="txFilterTag"><option value="">Todos los tags</option></select>
+            </div>
+            <div class="fp-row">
+              <div class="fp-field">
+                <label>Desde</label>
+                <input type="date" id="txFilterDateFrom" />
+              </div>
+              <div class="fp-field">
+                <label>Hasta</label>
+                <input type="date" id="txFilterDateTo" />
+              </div>
+            </div>
+            <div class="fp-row">
+              <div class="fp-field">
+                <label>Monto mínimo</label>
+                <input type="number" id="txFilterAmtMin" step="0.01" min="0" placeholder="0.00" />
+              </div>
+              <div class="fp-field">
+                <label>Monto máximo</label>
+                <input type="number" id="txFilterAmtMax" step="0.01" min="0" placeholder="0.00" />
+              </div>
+            </div>
+            <div class="filter-panel-actions">
+              <button type="button" class="btn-sm" id="txFilterClear">Limpiar</button>
+              <button type="button" class="btn-sm primary" id="txFilterApply">Listo</button>
+            </div>
+          </div>
+        </div>
+
+        <button type="button" class="btn-clear-all" id="txClearAll" disabled>Quitar filtros</button>
+      </div>
+
+      <div id="txSelBar" class="sel-bar hidden">
+        <span id="txSelInfo"></span>
+        <button class="btn-sm" id="txSelClear">Limpiar selección</button>
+      </div>
+
+      <div class="card no-pad">
+        <div class="table-wrap">
+          <table id="txTable">
+            <thead>
+              <tr>
+                <th class="ta-c"><input type="checkbox" id="txCheckAll" title="Seleccionar todo" /></th>
+                <th>Fecha</th><th>Descripción</th><th>Categoría</th>
+                <th>Cuenta</th><th>Tipo</th><th class="ta-r">Monto</th><th></th>
+              </tr>
+            </thead>
+            <tbody id="txBody"></tbody>
+          </table>
+        </div>
+        <div id="txEmpty" class="empty hidden">Aún no hay transacciones. ¡Agrega la primera!</div>
+      </div>
+    </section>
+
+    <!-- ===================== RECURRENTES ===================== -->
+    <section class="view" id="view-recurrentes">
+      <div class="view-head">
+        <div>
+          <h1>Recurrentes</h1>
+          <p class="muted">Suscripciones y movimientos que se repiten. Marca las casillas para proyectar tu ahorro.</p>
+        </div>
+        <button class="btn-primary" id="btnNuevoRecurrente">+ Nuevo recurrente</button>
+      </div>
+
+      <div class="stat-grid three">
+        <div class="stat-card expense"><div class="stat-label">Gasto recurrente mensual</div><div class="stat-value" id="recMensual">$0</div></div>
+        <div class="stat-card debt"><div class="stat-label">Proyección anual</div><div class="stat-value" id="recAnual">$0</div></div>
+        <div class="stat-card income"><div class="stat-label">Ingreso recurrente mensual</div><div class="stat-value" id="recIngreso">$0</div></div>
+      </div>
+
+      <div id="recSelBar" class="sel-bar hidden">
+        <span id="recSelInfo"></span>
+        <button class="btn-sm" id="recSelClear">Limpiar selección</button>
+      </div>
+
+      <div class="card no-pad">
+        <div class="table-wrap">
+          <table id="recTable">
+            <thead>
+              <tr>
+                <th class="ta-c"><input type="checkbox" id="recCheckAll" title="Seleccionar todo" /></th>
+                <th>Descripción</th><th>Categoría</th><th>Tipo</th><th>Frecuencia</th><th class="ta-r">Mensual</th><th class="ta-r">Anual</th><th>Próximo pago</th><th></th>
+              </tr>
+            </thead>
+            <tbody id="recBody"></tbody>
+          </table>
+        </div>
+        <div id="recEmpty" class="empty hidden">Aún no hay recurrentes. Se detectan solos cuando un gasto/ingreso se repite en 2+ meses, o agrégalos con “+ Nuevo recurrente”.</div>
+      </div>
+    </section>
+
+    <!-- ===================== HISTORIAL ===================== -->
+    <section class="view" id="view-historial">
+      <div class="view-head">
+        <div>
+          <h1>Historial</h1>
+          <p class="muted">Compara lo que ganas contra lo que gastas</p>
+        </div>
+        <div class="dash-controls">
+          <div class="rangepick" id="histRangePick">
+            <button class="rp-arrow" id="hpPrev" title="Periodo anterior"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 18l-6-6 6-6"/></svg></button>
+            <button class="rp-trigger" id="hpTrigger">
+              <span id="hpLabel">…</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+            </button>
+            <button class="rp-arrow" id="hpNext" title="Periodo siguiente"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 18l6-6-6-6"/></svg></button>
+            <div class="rp-panel" id="hpPanel">
+              <div class="rp-cals">
+                <div class="rp-cal" id="hpCalLeft"></div>
+                <div class="rp-cal" id="hpCalRight"></div>
+                <div class="rp-presets">
+                  <button data-preset="thisWeek">Esta semana</button>
+                  <button data-preset="lastWeek">Semana pasada</button>
+                  <button data-preset="thisMonth">Este mes</button>
+                  <button data-preset="lastMonth">Mes pasado</button>
+                  <button data-preset="thisYear">Este año</button>
+                  <button data-preset="lastYear">Año pasado</button>
+                  <button data-preset="all">Todo el historial</button>
+                </div>
+              </div>
+              <div class="rp-foot"><span id="hpSelLabel" class="muted"></span><button class="btn-primary btn-sm" id="hpApply">Aplicar</button></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h3 id="histChartTitle">Ingresos vs Gastos por periodo</h3></div>
+        <div class="chart-box tall"><canvas id="chartHistorial"></canvas></div>
+      </div>
+
+      <div class="card no-pad">
+        <div class="table-wrap">
+          <table id="histTable">
+            <thead>
+              <tr><th>Periodo</th><th class="ta-r">Ingresos</th><th class="ta-r">Gastos</th><th class="ta-r">Balance</th><th>Resultado</th><th>Saldos al cierre</th></tr>
+            </thead>
+            <tbody id="histBody"></tbody>
+          </table>
+        </div>
+        <div id="histEmpty" class="empty hidden">No hay datos para mostrar todavía.</div>
+      </div>
+    </section>
+
+    <!-- ===================== PRESUPUESTO ===================== -->
+    <section class="view" id="view-presupuesto">
+      <div class="view-head">
+        <div>
+          <h1>Presupuesto</h1>
+          <p class="muted">Asigna un límite mensual por categoría y vigila cuánto te queda</p>
+        </div>
+        <div class="dash-controls">
+          <div class="rangepick" id="budgetRangePick">
+            <button class="rp-arrow" id="bpPrev" title="Periodo anterior"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 18l-6-6 6-6"/></svg></button>
+            <button class="rp-trigger" id="bpTrigger">
+              <span id="bpLabel">…</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+            </button>
+            <button class="rp-arrow" id="bpNext" title="Periodo siguiente"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 18l6-6-6-6"/></svg></button>
+            <div class="rp-panel" id="bpPanel">
+              <div class="rp-cals">
+                <div class="rp-cal" id="bpCalLeft"></div>
+                <div class="rp-cal" id="bpCalRight"></div>
+                <div class="rp-presets">
+                  <button data-preset="thisWeek">Esta semana</button>
+                  <button data-preset="lastWeek">Semana pasada</button>
+                  <button data-preset="thisMonth">Este mes</button>
+                  <button data-preset="lastMonth">Mes pasado</button>
+                  <button data-preset="thisYear">Este año</button>
+                  <button data-preset="lastYear">Año pasado</button>
+                  <button data-preset="all">Todo el historial</button>
+                </div>
+              </div>
+              <div class="rp-foot"><span id="bpSelLabel" class="muted"></span><button class="btn-primary btn-sm" id="bpApply">Aplicar</button></div>
+            </div>
+          </div>
+          <button class="btn-sm" id="btnPlantilla503020" title="Repartir tu ingreso 50% necesidades / 30% deseos / 20% ahorro">⚡ Plantilla 50/30/20</button>
+          <button class="btn-primary" id="btnNuevoPresupuesto">+ Asignar límite</button>
+        </div>
+      </div>
+
+      <div id="budgetIncome" class="budget-income"></div>
+
+      <div class="stat-grid four">
+        <div class="stat-card balance"><div class="stat-label">Por repartir</div><div class="stat-value" id="budgetUnassigned">$0</div><div class="stat-foot" id="budgetUnassignedFoot"></div></div>
+        <div class="stat-card expense"><div class="stat-label">Presupuesto asignado</div><div class="stat-value" id="budgetTotal">$0</div></div>
+        <div class="stat-card debt"><div class="stat-label">Gastado</div><div class="stat-value" id="budgetSpent">$0</div></div>
+        <div class="stat-card saving"><div class="stat-label">Disponible del presupuesto</div><div class="stat-value" id="budgetLeft">$0</div></div>
+      </div>
+
+      <div id="budgetGrid" class="metas-grid"></div>
+    </section>
+
+    <!-- ===================== DEUDAS ===================== -->
+    <section class="view" id="view-deudas">
+      <div class="view-head">
+        <div>
+          <h1>Deudas</h1>
+          <p class="muted">Tarjetas de crédito, suscripciones y préstamos</p>
+        </div>
+        <button class="btn-primary" id="btnNuevaDeuda">+ Nueva deuda</button>
+      </div>
+
+      <div class="stat-grid three">
+        <div class="stat-card debt"><div class="stat-label">Deuda total pendiente</div><div class="stat-value" id="deudaTotal">$0</div></div>
+        <div class="stat-card expense"><div class="stat-label">Saldo en tarjetas de crédito</div><div class="stat-value" id="deudaMensual">$0</div></div>
+        <div class="stat-card saving"><div class="stat-label">Crédito disponible</div><div class="stat-value" id="deudaPagado">$0</div></div>
+      </div>
+
+      <h3 class="section-title">💳 Tarjetas de crédito</h3>
+      <div id="tarjetasGrid" class="metas-grid"></div>
+
+      <div class="section-row">
+        <h3 class="section-title">🧾 Compras a Meses Sin Intereses</h3>
+        <button class="btn-sm" id="btnNuevaMSI">+ Compra a MSI</button>
+      </div>
+      <div id="msiSummary"></div>
+      <div id="msiGrid" class="metas-grid"></div>
+
+      <h3 class="section-title">📄 Otras deudas</h3>
+      <div id="deudasGrid" class="metas-grid"></div>
+    </section>
+
+    <!-- ===================== AJUSTES ===================== -->
+    <section class="view" id="view-ajustes">
+      <div class="view-head">
+        <div>
+          <h1>Ajustes</h1>
+          <p class="muted">Cuentas, categorías y respaldo de datos</p>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h3>Cuentas y carteras</h3>
+          <button class="btn-primary" id="btnNuevaCuenta">+ Nueva cuenta</button>
+        </div>
+        <div id="cuentasList"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h3>Categorías</h3>
+          <button class="btn-primary" id="btnNuevaCategoria">+ Agregar</button>
+        </div>
+        <p class="muted" style="margin-bottom:12px">Ordénalas con ▲▼ — ese es el orden en que aparecen al registrar un movimiento.</p>
+        <div id="categoriasList"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h3>Respaldo de datos</h3></div>
+        <p class="muted" style="margin-bottom:12px">Exporta para guardar una copia o importa para combinar/restaurar.</p>
+        <div class="settings-actions">
+          <button class="btn-sm" id="btnExport">⬇️ Exportar datos (JSON)</button>
+          <button class="btn-sm" id="btnImport">⬆️ Importar datos (JSON)</button>
+          <input type="file" id="importFile" accept="application/json" hidden />
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ===================== MODAL ===================== -->
+  <div class="modal-overlay" id="modalOverlay">
+    <div class="modal" id="modal">
+      <div class="modal-head">
+        <h3 id="modalTitle">Título</h3>
+        <button class="modal-close" id="modalClose">✕</button>
+      </div>
+      <form id="modalForm" class="modal-body"></form>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div id="toast" class="toast"></div>
+
+  <!-- ===================== CALCULADORA FLOTANTE ===================== -->
+  <button id="calcFab" class="calc-fab" title="Calculadora" aria-label="Abrir calculadora">🧮</button>
+  <div id="calcPanel" class="calc-panel" role="dialog" aria-label="Calculadora">
+    <div class="calc-head">
+      <span>🧮 Calculadora</span>
+      <button id="calcClose" class="modal-close" title="Cerrar">✕</button>
+    </div>
+    <div class="calc-display">
+      <div id="calcExpr" class="calc-expr">&nbsp;</div>
+      <div id="calcResult" class="calc-result">0</div>
+    </div>
+    <div class="calc-grid" id="calcGrid">
+      <button class="calc-btn fn" data-k="C">C</button>
+      <button class="calc-btn fn" data-k="(">(</button>
+      <button class="calc-btn fn" data-k=")">)</button>
+      <button class="calc-btn op" data-k="/">÷</button>
+      <button class="calc-btn" data-k="7">7</button>
+      <button class="calc-btn" data-k="8">8</button>
+      <button class="calc-btn" data-k="9">9</button>
+      <button class="calc-btn op" data-k="*">×</button>
+      <button class="calc-btn" data-k="4">4</button>
+      <button class="calc-btn" data-k="5">5</button>
+      <button class="calc-btn" data-k="6">6</button>
+      <button class="calc-btn op" data-k="-">−</button>
+      <button class="calc-btn" data-k="1">1</button>
+      <button class="calc-btn" data-k="2">2</button>
+      <button class="calc-btn" data-k="3">3</button>
+      <button class="calc-btn op" data-k="+">+</button>
+      <button class="calc-btn op" data-k="back">⌫</button>
+      <button class="calc-btn" data-k="0">0</button>
+      <button class="calc-btn" data-k=".">.</button>
+      <button class="calc-btn eq" data-k="=">=</button>
+    </div>
+  </div>
+
+  <!-- Datalists para autocompletar -->
+  <datalist id="dlTipos">
+    <option value="Gasto"></option><option value="Ingreso"></option><option value="Ahorro"></option><option value="Transferencia"></option>
+  </datalist>
+  <datalist id="dlCategorias"></datalist>
+  <datalist id="dlCuentas"></datalist>
+  <datalist id="dlLink"></datalist>
+  <datalist id="dlTags"></datalist>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
