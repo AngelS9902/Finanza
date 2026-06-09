@@ -3901,4 +3901,102 @@ function seedIfEmpty() {
     { id: uid(), date: iso(5), type:'Gasto', description:'Gasolina', amount:700, account:'BBVA Débito', category:'Transporte', notes:'' },
     { id: uid(), date: iso(8), type:'Gasto', description:'Netflix', amount:219, account:'Rappi', category:'Suscripciones', notes:'' },
     { id: uid(), date: iso(35), type:'Ingreso', description:'Salario quincenal', amount:9000, account:'BBVA Débito', category:'Salario', notes:'' },
-    { id: uid(), date: iso(40), type:'Gasto', description:'Cena restaurante', amount:560, account:'Rappi', category:'Entret
+    { id: uid(), date: iso(40), type:'Gasto', description:'Cena restaurante', amount:560, account:'Rappi', category:'Entretenimiento', notes:'' },
+  ];
+  state.goals = [
+    { id: uid(), name:'Apple Watch', target:8500, saved:3200, targetDate: new Date(now.getFullYear(), now.getMonth()+4, 1).toISOString().slice(0,10), note:'Series 10' },
+  ];
+  state.debts = [
+    { id: uid(), name:'Tarjeta Nu', dtype:'Tarjeta de crédito', total:6500, paid:2000, monthly:1000, dueDate: new Date(now.getFullYear(), now.getMonth(), 28).toISOString().slice(0,10) },
+    { id: uid(), name:'Spotify', dtype:'Suscripción', total:115, paid:0, monthly:115, dueDate:'' },
+  ];
+  save();
+}
+
+/* ============================================================
+   AUTH & INIT
+   ============================================================ */
+async function initApp() {
+  const { data: { session } } = await _sb.auth.getSession();
+  if (!session) return;
+
+  // Cargar datos desde Supabase
+  const { data } = await _sb.from('user_data')
+    .select('state')
+    .eq('user_id', session.user.id)
+    .single();
+
+  if (data?.state && Object.keys(data.state).length > 0) {
+    // Usuario existente — usar datos de Supabase
+    state = migrate(data.state);
+  }
+  // Si no hay datos en Supabase, state ya tiene localStorage o defaults
+  // seedIfEmpty() lo guardará en Supabase vía save()
+
+  document.getElementById('loginScreen').style.display = 'none';
+  seedIfEmpty();
+  snapshotCurrentMonth();
+  refreshDatalists();
+  navigate('dashboard');
+}
+
+_sb.auth.onAuthStateChange((event, session) => {
+  if (session) {
+    initApp();
+  } else {
+    document.getElementById('loginScreen').style.display = 'flex';
+  }
+});
+
+/* ---- Login screen ---- */
+(function () {
+  let isRegister = false;
+  const form = document.getElementById('loginForm');
+  const toggleBtn = document.getElementById('toggleAuthMode');
+  const loginBtn = document.getElementById('loginBtn');
+  const subtitle = document.getElementById('loginSubtitle');
+  const errorBox = document.getElementById('loginError');
+
+  function showError(msg, isSuccess) {
+    errorBox.style.background = isSuccess ? '#14532d' : '#7f1d1d';
+    errorBox.style.color = isSuccess ? '#86efac' : '#fca5a5';
+    errorBox.textContent = msg;
+    errorBox.style.display = 'block';
+  }
+
+  toggleBtn.addEventListener('click', () => {
+    isRegister = !isRegister;
+    loginBtn.textContent = isRegister ? 'Crear cuenta' : 'Iniciar sesión';
+    toggleBtn.textContent = isRegister ? '¿Ya tienes cuenta? Inicia sesión' : '¿No tienes cuenta? Regístrate';
+    subtitle.textContent = isRegister ? 'Crea tu cuenta' : 'Inicia sesión para continuar';
+    errorBox.style.display = 'none';
+  });
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    errorBox.style.display = 'none';
+    loginBtn.disabled = true;
+    loginBtn.textContent = '…';
+
+    const email = document.getElementById('loginEmail').value;
+    const password = document.getElementById('loginPassword').value;
+
+    let result;
+    if (isRegister) {
+      result = await _sb.auth.signUp({ email, password });
+    } else {
+      result = await _sb.auth.signInWithPassword({ email, password });
+    }
+
+    if (result.error) {
+      showError(result.error.message);
+      loginBtn.disabled = false;
+      loginBtn.textContent = isRegister ? 'Crear cuenta' : 'Iniciar sesion';
+    }
+  });
+
+  document.getElementById('btnLogout')?.addEventListener('click', async () => {
+    await _sb.auth.signOut();
+    location.reload();
+  });
+})();
