@@ -42,7 +42,7 @@ function migrate(s) {
   s.categories = s.categories || [...DEFAULT_CATEGORIES];
   // v2: presupuestos por categoría (mapa nombre→límite mensual) y compras a MSI
   s.budgets = s.budgets || {};
-  s.msi = (s.msi || []).map(m => ({ id: m.id || uid(), name: m.name || 'Compra MSI', total: parseFloat(m.total) || 0, term: parseInt(m.term) || 3, startDate: m.startDate || new Date().toISOString().slice(0, 10), account: m.account || '' }));
+  s.msi = (s.msi || []).map(m => ({ id: m.id || uid(), name: m.name || 'Compra MSI', total: parseFloat(m.total) || 0, term: parseInt(m.term) || 3, startDate: m.startDate || new Date().toISOString().slice(0, 10), account: m.account || '', monthlyCharge: parseFloat(m.monthlyCharge) || 0, monthlyDiscount: parseFloat(m.monthlyDiscount) || 0, recurringKey: m.recurringKey || '' }));
   // v3: tags por transacción, ajustes configurables y snapshots de patrimonio neto
   s.transactions = s.transactions.map(t => ({ ...t, tags: Array.isArray(t.tags) ? t.tags : (t.tags ? [t.tags] : []) }));
   s.settings = Object.assign({ antThreshold: 100, incomeAmount: 0, incomeFreq: 'mensual' }, s.settings || {}); // umbral de "gasto hormiga" + sueldo fijo
@@ -178,15 +178,20 @@ function savingsRate(ingresos, gastos) {
   return { pct, cls, label };
 }
 
-// --- MSI ---
-function msiMonthly(m) { return (m.total || 0) / (m.term || 1); }
+// --- MSI / Compras a plazos ---
+// Cargo mensual bruto: el contractual si se capturó, si no total ÷ plazo
+function msiMonthlyGross(m) { return (m.monthlyCharge > 0) ? m.monthlyCharge : (m.total || 0) / (m.term || 1); }
+// Lo que realmente pagas al mes: cargo bruto − bonificación (ej. equipo AT&T a 36 meses)
+function msiMonthly(m) { return Math.max(0, msiMonthlyGross(m) - (m.monthlyDiscount || 0)); }
+// Total neto que pagarás en todo el plazo (= total original si no hay bonificación)
+function msiTotalNet(m) { return msiMonthly(m) * (m.term || 0); }
 function msiMonthsPaid(m) {
   const start = new Date(m.startDate + 'T00:00:00'); const now = new Date();
   if (now < new Date(start.getFullYear(), start.getMonth(), 1)) return 0;
   const elapsed = (now.getFullYear() - start.getFullYear()) * 12 + (now.getMonth() - start.getMonth());
   return Math.min(m.term || 0, Math.max(0, elapsed + 1)); // el mes de inicio cuenta como 1er pago
 }
-function msiPending(m) { return Math.max(0, (m.total || 0) - msiMonthsPaid(m) * msiMonthly(m)); }
+function msiPending(m) { return Math.max(0, msiTotalNet(m) - msiMonthsPaid(m) * msiMonthly(m)); }
 function msiActive(m) { return msiMonthsPaid(m) < (m.term || 0); }
 // Mapa monthKey→cargo total comprometido en MSI (todas las compras, todos sus meses)
 function msiSchedule() {
@@ -287,10 +292,10 @@ function cardOwedUpTo(acc, cutoffISO) {
 }
 function msiPendingAt(m, cutoffISO) {
   const start = new Date(m.startDate + 'T00:00:00'), cut = new Date(cutoffISO + 'T00:00:00');
-  if (cut < new Date(start.getFullYear(), start.getMonth(), 1)) return m.total || 0;
+  if (cut < new Date(start.getFullYear(), start.getMonth(), 1)) return msiTotalNet(m);
   const elapsed = (cut.getFullYear() - start.getFullYear()) * 12 + (cut.getMonth() - start.getMonth());
   const paid = Math.min(m.term || 0, Math.max(0, elapsed + 1));
-  return Math.max(0, (m.total || 0) - paid * msiMonthly(m));
+  return Math.max(0, msiTotalNet(m) - paid * msiMonthly(m));
 }
 // Estimación de patrimonio al cierre de un mes (cuentas/tarjetas/MSI reconstruidas; metas y deudas manuales como base actual)
 function reconstructNetWorthAt(key) {
@@ -965,9 +970,24 @@ function renderRecurrentes() {
     const freqBadge = r.frequency === 'yearly' ? '<span class="pill tagchip">Anual</span>' : '<span class="pill tag">Mensual</span>';
     const srcBadge = r.source === 'manual' ? ' <span class="pill tagchip" title="Agregado manualmente">✋</span>' : '';
     const canSel = r.type === 'Gasto';
+    // Desglose: planes a plazos vinculados a este recurrente (ej. equipo dentro del recibo)
+    const linked = (state.msi || []).filter(p => p.recurringKey === r.uid);
+    let splitHtml = '';
+    if (linked.length) {
+      const equipoTotal = linked.reduce((s, p) => s + (msiActive(p) ? msiMonthly(p) : 0), 0);
+      const resto = r.monthly - equipoTotal;
+      splitHtml = '<div class="rec-split">' + linked.map(p => {
+        const net = msiMonthly(p), paid = msiMonthsPaid(p), pend = msiPending(p);
+        const pct = p.term > 0 ? Math.min(100, (paid / p.term) * 100) : 0;
+        const done = paid >= p.term;
+        const discTxt = (p.monthlyDiscount || 0) > 0 ? ` <span class="rs-muted">(${money(msiMonthlyGross(p))} − ${money(p.monthlyDiscount)} bonif.)</span>` : '';
+        return `<div class="rec-split-line">📱 ${esc(p.name)} · <b>${money(net)}</b>/mes${discTxt} · ${paid}/${p.term}${done ? ' ✅' : ' · resta ' + money(pend)}</div>
+          <div class="progress mini ${done ? 'green' : 'amber'}"><span style="width:${pct}%"></span></div>`;
+      }).join('') + (equipoTotal > 0 && resto > 0.005 ? `<div class="rec-split-line rs-muted">Plan y otros: ${money(resto)}/mes</div>` : '') + '</div>';
+    }
     return `<tr>
       <td class="ta-c"><input type="checkbox" class="tx-check rec-check" data-uid="${esc(r.uid)}" ${selectedRec.has(r.uid) ? 'checked' : ''} ${canSel ? '' : 'disabled title="Solo los gastos cuentan para el ahorro"'} /></td>
-      <td style="font-weight:600">🔁 ${desc}${srcBadge}</td>
+      <td style="font-weight:600">🔁 ${desc}${srcBadge}${splitHtml}</td>
       <td>${r.category ? `<span class="pill tag">${esc(r.category)}</span>` : '—'}</td>
       <td><span class="pill ${r.type}">${r.type}</span></td>
       <td>${freqBadge}</td>
@@ -1818,10 +1838,13 @@ document.getElementById('btnNuevaDeuda').addEventListener('click', () => deudaMo
 /* ============================================================
    MSI — Meses Sin Intereses
    ============================================================ */
-const MSI_TERMS = [3, 6, 9, 12, 18, 24];
+const MSI_TERMS = [3, 6, 9, 12, 18, 24, 30, 36, 48];
 
 function msiModal(existing) {
-  const m = existing || { name: '', total: '', term: 12, startDate: todayISO(), account: '' };
+  const m = existing || { name: '', total: '', term: 12, startDate: todayISO(), account: '', monthlyCharge: '', monthlyDiscount: '', recurringKey: '' };
+  const terms = [...new Set([...MSI_TERMS, m.term])].filter(Boolean).sort((a, b) => a - b);
+  const recOptions = allRecurring().filter(r => r.type === 'Gasto')
+    .map(r => `<option value="${esc(r.uid)}" ${m.recurringKey === r.uid ? 'selected' : ''}>${esc(r.description)} (${money(r.monthly)}/mes)</option>`).join('');
   const html = `
     <div class="field">
       <label>Descripción de la compra</label>
@@ -1834,7 +1857,7 @@ function msiModal(existing) {
       </div>
       <div class="field">
         <label>Plazo (meses)</label>
-        <select name="term">${MSI_TERMS.map(t => `<option ${t === m.term ? 'selected' : ''} value="${t}">${t} MSI</option>`).join('')}</select>
+        <select name="term">${terms.map(t => `<option ${t === m.term ? 'selected' : ''} value="${t}">${t} meses</option>`).join('')}</select>
       </div>
     </div>
     <div class="field-row">
@@ -1847,6 +1870,25 @@ function msiModal(existing) {
         <input list="dlCuentas" name="account" value="${esc(m.account || '')}" placeholder="Ej. Rappi" autocomplete="off" />
       </div>
     </div>
+    <div class="field-row">
+      <div class="field">
+        <label>Cargo mensual (opcional)</label>
+        <input type="number" name="monthlyCharge" step="0.01" min="0" value="${m.monthlyCharge || ''}" placeholder="Total ÷ plazo" />
+      </div>
+      <div class="field">
+        <label>Bonificación mensual (opcional)</label>
+        <input type="number" name="monthlyDiscount" step="0.01" min="0" value="${m.monthlyDiscount || ''}" placeholder="0.00" />
+      </div>
+    </div>
+    <div class="hint">Para financiamientos tipo telefonía: pagas cargo − bonificación cada mes (ej. equipo de $805.54 con bonificación de $233.61 = $571.93/mes).</div>
+    <div class="field">
+      <label>Viene dentro de un pago recurrente (opcional)</label>
+      <select name="recurringKey">
+        <option value="">— No vincular —</option>
+        ${recOptions}
+      </select>
+      <div class="hint">Si este pago es parte de un recibo mayor (ej. equipo dentro del recibo de AT&amp;T), vincúlalo para ver el desglose en Recurrentes.</div>
+    </div>
     <div class="modal-actions">
       <button type="button" class="btn-cancel" onclick="closeModal()">Cancelar</button>
       <button type="submit" class="btn-primary">${existing ? 'Guardar cambios' : 'Registrar compra'}</button>
@@ -1855,6 +1897,9 @@ function msiModal(existing) {
     data.total = parseFloat(data.total) || 0;
     data.term = parseInt(data.term) || 12;
     data.account = (data.account || '').trim();
+    data.monthlyCharge = parseFloat(data.monthlyCharge) || 0;
+    data.monthlyDiscount = parseFloat(data.monthlyDiscount) || 0;
+    data.recurringKey = data.recurringKey || '';
     if (existing) Object.assign(existing, data);
     else state.msi.push({ id: uid(), ...data });
     save(); closeModal(); renderDeudas(); toast(existing ? 'Compra actualizada' : 'Compra a MSI registrada');
@@ -1890,11 +1935,16 @@ function renderMSI() {
     const pending = msiPending(m);
     const pct = m.term > 0 ? (paid / m.term) * 100 : 0;
     const done = paid >= m.term;
+    const hasDisc = (m.monthlyDiscount || 0) > 0;
+    const linkedRec = m.recurringKey ? allRecurring().find(r => r.uid === m.recurringKey) : null;
+    const descLine = hasDisc ? `<div class="goal-sub">Cargo ${money(msiMonthlyGross(m))} − bonif. ${money(m.monthlyDiscount)} = <b>${money(monthly)}</b>/mes</div>` : '';
+    const recLine = linkedRec ? `<div class="goal-sub">🔁 Dentro de: ${esc(linkedRec.description)}</div>` : '';
     return `<div class="goal-card ${done ? 'done' : ''}">
       <div class="goal-top">
         <div>
           <div class="goal-name">🧾 ${esc(m.name)} ${done ? '✅' : ''}</div>
-          <div class="goal-sub">${m.term} MSI${m.account ? ' · ' + esc(m.account) : ''} · desde ${fmtDate(m.startDate)}</div>
+          <div class="goal-sub">${m.term} meses${m.account ? ' · ' + esc(m.account) : ''} · desde ${fmtDate(m.startDate)}</div>
+          ${descLine}${recLine}
         </div>
         <div class="row-actions">
           <button class="icon-btn" onclick="editMSI('${m.id}')">✎</button>
@@ -1903,7 +1953,7 @@ function renderMSI() {
       </div>
       <div class="goal-amounts">
         <div><div class="lbl">Pendiente</div><div class="big amount-neg">${money(pending)}</div></div>
-        <div style="text-align:right"><div class="lbl">Total</div><div class="big">${money(m.total)}</div></div>
+        <div style="text-align:right"><div class="lbl">${hasDisc ? 'Total neto' : 'Total'}</div><div class="big" ${hasDisc ? `title="Precio de lista: ${money(m.total)}"` : ''}>${money(msiTotalNet(m))}</div></div>
       </div>
       <div class="progress ${done ? 'green' : 'amber'}"><span style="width:${Math.min(100, pct)}%"></span></div>
       <div class="goal-meta">
@@ -3136,7 +3186,7 @@ function mergeImport(data) {
   (data.goals || []).forEach(g => { const i = state.goals.findIndex(x => x.id === g.id); if (i >= 0) state.goals[i] = g; else state.goals.push(g); });
   (data.debts || []).forEach(d => { const i = state.debts.findIndex(x => x.id === d.id); if (i >= 0) state.debts[i] = d; else state.debts.push(d); });
   (data.msi || []).forEach(m => {
-    const norm = { id: m.id || uid(), name: m.name || 'Compra MSI', total: parseFloat(m.total) || 0, term: parseInt(m.term) || 3, startDate: m.startDate || todayISO(), account: m.account || '' };
+    const norm = { id: m.id || uid(), name: m.name || 'Compra MSI', total: parseFloat(m.total) || 0, term: parseInt(m.term) || 3, startDate: m.startDate || todayISO(), account: m.account || '', monthlyCharge: parseFloat(m.monthlyCharge) || 0, monthlyDiscount: parseFloat(m.monthlyDiscount) || 0, recurringKey: m.recurringKey || '' };
     const i = state.msi.findIndex(x => x.id === norm.id);
     if (i >= 0) state.msi[i] = norm; else state.msi.push(norm);
   });
@@ -4142,3 +4192,4 @@ _sb.auth.onAuthStateChange((event, session) => {
     document.addEventListener('click', () => notifPanel.classList.add('hidden'));
   }
 })();
+
