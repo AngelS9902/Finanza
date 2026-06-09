@@ -10,6 +10,34 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
+
+  <!-- ===================== LOGIN SCREEN ===================== -->
+  <div id="loginScreen" style="position:fixed;inset:0;background:#0f172a;z-index:9999;display:flex;align-items:center;justify-content:center;">
+    <div style="background:#1e293b;border-radius:16px;padding:2rem;width:100%;max-width:380px;margin:1rem;box-shadow:0 25px 50px rgba(0,0,0,.5);">
+      <div style="text-align:center;margin-bottom:1.5rem;">
+        <div style="font-size:2.5rem;margin-bottom:.5rem;">💰</div>
+        <h2 style="margin:0;color:#f1f5f9;font-size:1.4rem;font-family:Inter,sans-serif;">Mis Finanzas</h2>
+        <p style="color:#94a3b8;margin:.3rem 0 0;font-size:.875rem;font-family:Inter,sans-serif;" id="loginSubtitle">Inicia sesión para continuar</p>
+      </div>
+      <div id="loginError" style="display:none;border-radius:8px;padding:.75rem 1rem;margin-bottom:1rem;font-size:.875rem;font-family:Inter,sans-serif;"></div>
+      <form id="loginForm" style="display:flex;flex-direction:column;gap:.75rem;">
+        <input id="loginEmail" type="email" placeholder="Correo electrónico" required autocomplete="email"
+          style="background:#0f172a;border:1px solid #334155;border-radius:8px;padding:.75rem 1rem;color:#f1f5f9;font-size:1rem;outline:none;font-family:Inter,sans-serif;" />
+        <input id="loginPassword" type="password" placeholder="Contraseña" required autocomplete="current-password"
+          style="background:#0f172a;border:1px solid #334155;border-radius:8px;padding:.75rem 1rem;color:#f1f5f9;font-size:1rem;outline:none;font-family:Inter,sans-serif;" />
+        <button type="submit" id="loginBtn"
+          style="background:#3b82f6;color:#fff;border:none;border-radius:8px;padding:.75rem;font-size:1rem;font-weight:600;cursor:pointer;margin-top:.25rem;font-family:Inter,sans-serif;">
+          Iniciar sesión
+        </button>
+      </form>
+      <div style="text-align:center;margin-top:1rem;">
+        <button id="toggleAuthMode" type="button" style="background:none;border:none;color:#60a5fa;font-size:.875rem;cursor:pointer;font-family:Inter,sans-serif;">
+          ¿No tienes cuenta? Regístrate
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- ===================== TOP BAR ===================== -->
   <header class="topbar">
     <div class="brand">
@@ -51,6 +79,7 @@
     <div class="topbar-actions">
       <button class="btn-ghost" id="btnCensor" title="Mostrar movimientos privados">🙈</button>
       <button class="btn-ghost" data-view="ajustes" title="Ajustes">⚙️</button>
+      <button class="btn-ghost" id="btnLogout" title="Cerrar sesión">🚪</button>
     </div>
   </header>
 
@@ -597,6 +626,7 @@
   <datalist id="dlLink"></datalist>
   <datalist id="dlTags"></datalist>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="app.js"></script>
 </body>

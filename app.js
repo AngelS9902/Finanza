@@ -1,9 +1,14 @@
 /* ============================================================
    Mis Finanzas — lógica de la aplicación
-   Datos guardados en localStorage. Sin backend.
    ============================================================ */
 
 const STORE_KEY = 'finanzas_v1';
+
+/* ---- Supabase ---- */
+const SUPABASE_URL = 'https://qqyxbecgzyyqdpquponn.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFxeXhiZWNnenl5cWRwcXVwb25uIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEwMTQ1NTAsImV4cCI6MjA5NjU5MDU1MH0.x_qrRIPyQxFoLRYWPVY1iwX9IZ5py-Hc-mu0cY0dORs';
+const _sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+let _saveTimer = null;
 const SCHEMA_VERSION = 3; // v3: tags en transacciones, recurrentes, snapshots de patrimonio y settings
 
 const DEFAULT_CATEGORIES = [
@@ -54,7 +59,18 @@ function migrate(s) {
   if (!s.accounts.length) s.accounts = [...DEFAULT_ACCOUNTS];
   return s;
 }
-function save() { localStorage.setItem(STORE_KEY, JSON.stringify(state)); }
+function save() {
+  localStorage.setItem(STORE_KEY, JSON.stringify(state));
+  clearTimeout(_saveTimer);
+  _saveTimer = setTimeout(async () => {
+    const { data: { user } } = await _sb.auth.getUser();
+    if (!user) return;
+    await _sb.from('user_data').upsert(
+      { user_id: user.id, state, updated_at: new Date().toISOString() },
+      { onConflict: 'user_id' }
+    );
+  }, 1500);
+}
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
 
 /* ---------------- Helpers de cuentas ---------------- */
@@ -3897,7 +3913,95 @@ function seedIfEmpty() {
   save();
 }
 
-seedIfEmpty();
-snapshotCurrentMonth(); // guarda/actualiza el patrimonio neto del mes en curso
-refreshDatalists();
-navigate('dashboard');
+/* ============================================================
+   AUTH & INIT
+   ============================================================ */
+async function initApp() {
+  const { data: { session } } = await _sb.auth.getSession();
+  if (!session) return;
+
+  // Cargar datos desde Supabase
+  const { data } = await _sb.from('user_data')
+    .select('state')
+    .eq('user_id', session.user.id)
+    .single();
+
+  if (data?.state && Object.keys(data.state).length > 0) {
+    // Usuario existente — usar datos de Supabase
+    state = migrate(data.state);
+  }
+  // Si no hay datos en Supabase, state ya tiene localStorage o defaults
+  // seedIfEmpty() lo guardará en Supabase vía save()
+
+  document.getElementById('loginScreen').style.display = 'none';
+  seedIfEmpty();
+  snapshotCurrentMonth();
+  refreshDatalists();
+  navigate('dashboard');
+}
+
+_sb.auth.onAuthStateChange((event, session) => {
+  if (session) {
+    initApp();
+  } else {
+    document.getElementById('loginScreen').style.display = 'flex';
+  }
+});
+
+/* ---- Login screen ---- */
+(function () {
+  let isRegister = false;
+  const form = document.getElementById('loginForm');
+  const toggleBtn = document.getElementById('toggleAuthMode');
+  const loginBtn = document.getElementById('loginBtn');
+  const subtitle = document.getElementById('loginSubtitle');
+  const errorBox = document.getElementById('loginError');
+
+  function showError(msg, isSuccess) {
+    errorBox.style.background = isSuccess ? '#14532d' : '#7f1d1d';
+    errorBox.style.color = isSuccess ? '#86efac' : '#fca5a5';
+    errorBox.textContent = msg;
+    errorBox.style.display = 'block';
+  }
+
+  toggleBtn.addEventListener('click', () => {
+    isRegister = !isRegister;
+    loginBtn.textContent = isRegister ? 'Crear cuenta' : 'Iniciar sesión';
+    toggleBtn.textContent = isRegister ? '¿Ya tienes cuenta? Inicia sesión' : '¿No tienes cuenta? Regístrate';
+    subtitle.textContent = isRegister ? 'Crea tu cuenta' : 'Inicia sesión para continuar';
+    errorBox.style.display = 'none';
+  });
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    errorBox.style.display = 'none';
+    loginBtn.disabled = true;
+    loginBtn.textContent = '…';
+
+    const email = document.getElementById('loginEmail').value;
+    const password = document.getElementById('loginPassword').value;
+
+    let result;
+    if (isRegister) {
+      result = await _sb.auth.signUp({ email, password });
+    } else {
+      result = await _sb.auth.signInWithPassword({ email, password });
+    }
+
+    if (result.error) {
+      showError(result.error.message);
+      loginBtn.disabled = false;
+      loginBtn.textContent = isRegister ? 'Crear cuenta' : 'Iniciar sesión';
+    } else if (isRegister && !result.data.session) {
+      showError('✅ Revisa tu correo para confirmar tu cuenta.', true);
+      loginBtn.disabled = false;
+      loginBtn.textContent = 'Crear cuenta';
+    }
+    // Si el login fue exitoso, onAuthStateChange dispara initApp()
+  });
+
+  document.getElementById('btnLogout')?.addEventListener('click', async () => {
+    await _sb.auth.signOut();
+    location.reload();
+  });
+})();
