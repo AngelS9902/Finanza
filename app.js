@@ -60,6 +60,7 @@ function migrate(s) {
   return s;
 }
 function save() {
+  state._savedAt = Date.now();
   localStorage.setItem(STORE_KEY, JSON.stringify(state));
   clearTimeout(_saveTimer);
   _saveTimer = setTimeout(async () => {
@@ -4022,13 +4023,31 @@ function seedIfEmpty() {
 let _appInitialized = false;
 
 async function initApp(session) {
-  const { data } = await _sb.from('user_data')
-    .select('state')
+  const localRaw = localStorage.getItem(STORE_KEY);
+  const localState = localRaw ? (() => { try { return JSON.parse(localRaw); } catch(e) { return null; } })() : null;
+  const localTime = localState?._savedAt || 0;
+
+  const { data: sbData } = await _sb.from('user_data')
+    .select('state, updated_at')
     .eq('user_id', session.user.id)
     .single();
 
-  if (data?.state && Object.keys(data.state).length > 0) {
-    state = migrate(data.state);
+  if (sbData?.state && Object.keys(sbData.state).length > 0) {
+    const sbTime = new Date(sbData.updated_at).getTime();
+    if (sbTime > localTime) {
+      // Supabase es mas reciente
+      state = migrate(sbData.state);
+      localStorage.setItem(STORE_KEY, JSON.stringify(state));
+    } else if (localState) {
+      // localStorage es mas reciente - usarlo y sincronizar a Supabase
+      state = migrate(localState);
+      _sb.from('user_data').upsert(
+        { user_id: session.user.id, state, updated_at: new Date().toISOString() },
+        { onConflict: 'user_id' }
+      );
+    }
+  } else if (localState) {
+    state = migrate(localState);
   }
 
   document.getElementById('loginScreen').style.display = 'none';
