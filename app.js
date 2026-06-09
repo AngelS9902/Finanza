@@ -4019,10 +4019,9 @@ function seedIfEmpty() {
 /* ============================================================
    AUTH & INIT
    ============================================================ */
-async function initApp() {
-  const { data: { session } } = await _sb.auth.getSession();
-  if (!session) return;
+let _appInitialized = false;
 
+async function initApp(session) {
   const { data } = await _sb.from('user_data')
     .select('state')
     .eq('user_id', session.user.id)
@@ -4040,9 +4039,11 @@ async function initApp() {
 }
 
 _sb.auth.onAuthStateChange((event, session) => {
-  if (session) {
-    initApp();
-  } else {
+  if (session && !_appInitialized) {
+    _appInitialized = true;
+    initApp(session);
+  } else if (event === 'SIGNED_OUT') {
+    _appInitialized = false;
     document.getElementById('loginScreen').style.display = 'flex';
   }
 });
