@@ -3526,7 +3526,7 @@ function construirEstadoPlan() {
 
   // Tarjetas de crédito (saldo que debes + días al corte).
   const tarjetas = state.accounts.filter(a => a.kind === 'credito').map(a => ({
-    nombre: a.name, saldo: Math.max(0, cardOwed(a)),
+    nombre: a.name, saldo: Math.round(Math.max(0, cardOwed(a)) * 100) / 100,
     diasParaCorte: a.cutDay ? daysUntilDay(a.cutDay) : null,
   }));
 
